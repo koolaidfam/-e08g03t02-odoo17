@@ -94,16 +94,10 @@ stages:
             inputs:
               sshEndpoint: 'ssh-odoo17-production'
               runOptions: commands
-              commands: |
-                set -e
-                cd $HOME/deploy-temp
-                if [ -f "odoo.sql.gz" ]; then
-                    echo "Uncompressing odoo.sql.gz..."
-                    gunzip -c odoo.sql.gz > odoo.sql
-                    echo "Uncompress complete"
-                else
-                    echo "WARNING: odoo.sql.gz not found. Skipping uncompress."
-                fi
+              commands: >-
+                set -e;
+                cd $HOME/deploy-temp;
+                if [ -f "odoo.sql.gz" ]; then echo "Uncompressing odoo.sql.gz..."; gunzip -c odoo.sql.gz > odoo.sql; echo "Uncompress complete"; else echo "WARNING: odoo.sql.gz not found. Skipping uncompress."; fi
 
           # Restore Database
           - task: SSH@0
