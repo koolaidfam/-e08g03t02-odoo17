@@ -1,35 +1,29 @@
 trigger:
   branches:
     include:
-      - Staging
-      - master
-
+    - Staging
+    - master
 pool:
   name: Default
-
 variables:
-  repoUrl: 'https://github.com/souravb-smu/odoo17.git'
-  updateScript: '$HOME/deploy-temp/update_code.sh'
-  stagePath: '$HOME'
-
+- name: repoUrl
+  value: 'https://github.com/souravb-smu/odoo17.git'
+- name: updateScript
+  value: '$HOME/deploy-temp/update_code.sh'
+- name: stagePath
+  value: '$HOME'
 stages:
-
-# =========================
-# STAGING STAGE
-# =========================
 - stage: Staging
   displayName: Deploy to Staging
   condition: eq(variables['Build.SourceBranchName'], 'Staging')
-
   jobs:
   - deployment: DeployStaging
-    environment: Staging
+    environment:
+      name: Staging
     strategy:
       runOnce:
         deploy:
           steps:
-
-          # Sync code
           - task: SSH@0
             displayName: "Sync Code - Staging"
             inputs:
@@ -44,8 +38,6 @@ stages:
                 cd deploy-temp
                 rm -f .DS_Store
                 rm -rf .github
-
-          # Run update script
           - task: SSH@0
             displayName: "Run Update Script - Staging"
             inputs:
@@ -53,29 +45,18 @@ stages:
               runOptions: commands
               commands: |
                 set -e
-                if [ -f "$updateScript" ]; then
-                  chmod +x $updateScript
-                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $updateScript
-                else
-                  echo "WARNING: Update script not found, skipping"
-                fi
-
-# =========================
-# PRODUCTION STAGE
-# =========================
+                if [ -f "$updateScript" ]; then chmod +x $updateScript && echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $updateScript; else echo "WARNING: Update script not found, skipping"; fi
 - stage: Production
   displayName: Deploy to Production
   condition: eq(variables['Build.SourceBranchName'], 'master')
-
   jobs:
   - deployment: DeployProduction
-    environment: Production
+    environment:
+      name: Production
     strategy:
       runOnce:
         deploy:
           steps:
-
-          # Sync code
           - task: SSH@0
             displayName: "Sync Code - Production"
             inputs:
@@ -90,8 +71,6 @@ stages:
                 cd deploy-temp
                 rm -f .DS_Store
                 rm -rf .github
-
-          # Uncompress SQL on VM
           - task: SSH@0
             displayName: "Uncompress odoo.sql.gz on VM"
             inputs:
@@ -100,15 +79,7 @@ stages:
               commands: |
                 set -e
                 cd $HOME/deploy-temp
-                if [ -f "odoo.sql.gz" ]; then
-                  echo "Uncompressing odoo.sql.gz..."
-                  gunzip -c odoo.sql.gz > odoo.sql
-                  echo "Uncompress complete"
-                else
-                  echo "WARNING: odoo.sql.gz not found, skipping uncompress"
-                fi
-
-          # Restore Database
+                if [ -f "odoo.sql.gz" ]; then gunzip -c odoo.sql.gz > odoo.sql && echo "Uncompress complete"; else echo "WARNING: odoo.sql.gz not found, skipping uncompress"; fi
           - task: SSH@0
             displayName: "Restore Database"
             inputs:
@@ -116,27 +87,12 @@ stages:
               runOptions: commands
               commands: |
                 set -e
-                if [ -f "$HOME/deploy-temp/restore_db.sh" ] && [ -f "$HOME/deploy-temp/odoo.sql" ]; then
-                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/restore_db.sh /tmp/
-                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/odoo.sql /tmp/
-                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod +x /tmp/restore_db.sh
-                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod 644 /tmp/odoo.sql
-                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' -u postgres /tmp/restore_db.sh "odoo17" "odoo" "/tmp/odoo.sql"
-                else
-                  echo "WARNING: restore script or odoo.sql not found, skipping database restore"
-                fi
-
-          # Run update script
+                if [ -f "$HOME/deploy-temp/restore_db.sh" ] && [ -f "$HOME/deploy-temp/odoo.sql" ]; then echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/restore_db.sh /tmp/ && echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/odoo.sql /tmp/ && echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod +x /tmp/restore_db.sh && echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod 644 /tmp/odoo.sql && echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' -u postgres /tmp/restore_db.sh "odoo17" "odoo" "/tmp/odoo.sql"; else echo "WARNING: restore script or odoo.sql not found, skipping database restore"; fi
           - task: SSH@0
             displayName: "Run Update Script - Production"
             inputs:
               sshEndpoint: 'ssh-odoo17-production'
               runOptions: commands
-              commands: |
+              commands: |-
                 set -e
-                if [ -f "$updateScript" ]; then
-                  chmod +x $updateScript
-                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $updateScript
-                else
-                  echo "WARNING: Update script not found, skipping"
-                fi
+                if [ -f "$updateScript" ]; then chmod +x $updateScript && echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $updateScript; else echo "WARNING: Update script not found, skipping"; fi
