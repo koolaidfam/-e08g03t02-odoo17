@@ -9,8 +9,8 @@ pool:
 
 variables:
   repoUrl: 'https://github.com/souravb-smu/odoo17.git'
-  updateScript: '/home/azureuser/deploy-temp/update_code.sh'
-  stagePath: '/home/azureuser/'
+  updateScript: '$HOME/deploy-temp/update_code.sh'
+  stagePath: '$HOME'
 
 stages:
 
@@ -29,7 +29,6 @@ stages:
         deploy:
           steps:
 
-          # Sync code
           - task: SSH@0
             displayName: "Sync Code - Staging"
             inputs:
@@ -38,7 +37,8 @@ stages:
               commands: |
                 set -e
                 echo "Deploying branch: $(Build.SourceBranchName)"
-                cd $(stagePath)
+                cd $HOME
+
                 rm -rf deploy-temp *-odoo17
 
                 git clone -b Staging $(repoUrl) --quiet
@@ -48,15 +48,15 @@ stages:
                 rm -f .DS_Store
                 rm -rf .github
 
-          # Run update script
           - task: SSH@0
             displayName: "Run Update Script - Staging"
             inputs:
               sshEndpoint: 'ssh-odoo17'
               runOptions: commands
               commands: |
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod +x $(updateScript)
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $(updateScript)
+                set -e
+                chmod +x $HOME/deploy-temp/update_code.sh
+                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $HOME/deploy-temp/update_code.sh
 
 
 # =========================
@@ -74,7 +74,6 @@ stages:
         deploy:
           steps:
 
-          # Sync code
           - task: SSH@0
             displayName: "Sync Code - Production"
             inputs:
@@ -83,7 +82,8 @@ stages:
               commands: |
                 set -e
                 echo "Deploying branch: $(Build.SourceBranchName)"
-                cd $(stagePath)
+                cd $HOME
+
                 rm -rf deploy-temp *-odoo17
 
                 git clone -b master $(repoUrl) --quiet
@@ -93,7 +93,6 @@ stages:
                 rm -f .DS_Store
                 rm -rf .github
 
-          # Uncompress SQL on VM
           - task: SSH@0
             displayName: "Uncompress odoo.sql.gz on VM"
             inputs:
@@ -101,12 +100,12 @@ stages:
               runOptions: commands
               commands: |
                 set -e
-                cd $(stagePath)/deploy-temp/
-                echo "Uncompressing odoo.sql.gz..."
-                gunzip -c $(tempDeploy)/odoo.sql.gz > $(tempDeploy)/odoo.sql
-                echo "Uncompress complete: $(stagePath)/deploy-temp/odoo.sql"
+                cd $HOME/deploy-temp
 
-          # Restore Database
+                echo "Uncompressing odoo.sql.gz..."
+                gunzip -c odoo.sql.gz > odoo.sql
+                echo "Uncompress complete"
+
           - task: SSH@0
             displayName: "Restore Database"
             inputs:
@@ -114,20 +113,21 @@ stages:
               runOptions: commands
               commands: |
                 set -e
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp /home/azureuser/deploy-temp/restore_db.sh /tmp/
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp /home/azureuser/deploy-temp/odoo.sql /tmp/
+
+                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/restore_db.sh /tmp/
+                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/odoo.sql /tmp/
 
                 echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod +x /tmp/restore_db.sh
                 echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod 644 /tmp/odoo.sql
 
                 echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' -u postgres /tmp/restore_db.sh "odoo17" "odoo" "/tmp/odoo.sql"
 
-          # Run update script
           - task: SSH@0
             displayName: "Run Update Script - Production"
             inputs:
               sshEndpoint: 'ssh-odoo17-production'
               runOptions: commands
               commands: |
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod +x $(updateScript)
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $(updateScript)
+                set -e
+                chmod +x $HOME/deploy-temp/update_code.sh
+                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $HOME/deploy-temp/update_code.sh
