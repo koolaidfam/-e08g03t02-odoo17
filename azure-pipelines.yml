@@ -29,6 +29,7 @@ stages:
         deploy:
           steps:
 
+          # Sync code
           - task: SSH@0
             displayName: "Sync Code - Staging"
             inputs:
@@ -38,16 +39,13 @@ stages:
                 set -e
                 echo "Deploying branch: $(Build.SourceBranchName)"
                 cd $HOME
-
-                rm -rf deploy-temp *-odoo17
-
-                git clone -b Staging $(repoUrl) --quiet
-                mv *-odoo17 deploy-temp
-
+                rm -rf deploy-temp
+                git clone -b Staging $(repoUrl) deploy-temp --quiet
                 cd deploy-temp
                 rm -f .DS_Store
                 rm -rf .github
 
+          # Run update script
           - task: SSH@0
             displayName: "Run Update Script - Staging"
             inputs:
@@ -74,6 +72,7 @@ stages:
         deploy:
           steps:
 
+          # Sync code
           - task: SSH@0
             displayName: "Sync Code - Production"
             inputs:
@@ -83,16 +82,13 @@ stages:
                 set -e
                 echo "Deploying branch: $(Build.SourceBranchName)"
                 cd $HOME
-
-                rm -rf deploy-temp *-odoo17
-
-                git clone -b master $(repoUrl) --quiet
-                mv *-odoo17 deploy-temp
-
+                rm -rf deploy-temp
+                git clone -b master $(repoUrl) deploy-temp --quiet
                 cd deploy-temp
                 rm -f .DS_Store
                 rm -rf .github
 
+          # Uncompress SQL on VM
           - task: SSH@0
             displayName: "Uncompress odoo.sql.gz on VM"
             inputs:
@@ -101,11 +97,11 @@ stages:
               commands: |
                 set -e
                 cd $HOME/deploy-temp
-
                 echo "Uncompressing odoo.sql.gz..."
                 gunzip -c odoo.sql.gz > odoo.sql
                 echo "Uncompress complete"
 
+          # Restore Database
           - task: SSH@0
             displayName: "Restore Database"
             inputs:
@@ -113,15 +109,13 @@ stages:
               runOptions: commands
               commands: |
                 set -e
-
                 echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/restore_db.sh /tmp/
                 echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/odoo.sql /tmp/
-
                 echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod +x /tmp/restore_db.sh
                 echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod 644 /tmp/odoo.sql
-
                 echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' -u postgres /tmp/restore_db.sh "odoo17" "odoo" "/tmp/odoo.sql"
 
+          # Run update script
           - task: SSH@0
             displayName: "Run Update Script - Production"
             inputs:
