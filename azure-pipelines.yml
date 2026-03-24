@@ -88,7 +88,7 @@ stages:
                 rm -f .DS_Store
                 rm -rf .github
 
-          # Uncompress SQL on VM
+          # Uncompress SQL if it exists
           - task: SSH@0
             displayName: "Uncompress odoo.sql.gz on VM"
             inputs:
@@ -97,11 +97,15 @@ stages:
               commands: |
                 set -e
                 cd $HOME/deploy-temp
-                echo "Uncompressing odoo.sql.gz..."
-                gunzip -c odoo.sql.gz > odoo.sql
-                echo "Uncompress complete"
+                if [ -f odoo.sql.gz ]; then
+                  echo "Uncompressing odoo.sql.gz..."
+                  gunzip -c odoo.sql.gz > odoo.sql
+                  echo "Uncompress complete"
+                else
+                  echo "WARNING: odoo.sql.gz not found. Skipping database restore."
+                fi
 
-          # Restore Database
+          # Restore Database (only if SQL exists)
           - task: SSH@0
             displayName: "Restore Database"
             inputs:
@@ -109,11 +113,15 @@ stages:
               runOptions: commands
               commands: |
                 set -e
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/restore_db.sh /tmp/
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/odoo.sql /tmp/
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod +x /tmp/restore_db.sh
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod 644 /tmp/odoo.sql
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' -u postgres /tmp/restore_db.sh "odoo17" "odoo" "/tmp/odoo.sql"
+                if [ -f $HOME/deploy-temp/odoo.sql ]; then
+                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/restore_db.sh /tmp/
+                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/odoo.sql /tmp/
+                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod +x /tmp/restore_db.sh
+                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod 644 /tmp/odoo.sql
+                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' -u postgres /tmp/restore_db.sh "odoo17" "odoo" "/tmp/odoo.sql"
+                else
+                  echo "Skipping database restore: odoo.sql not found."
+                fi
 
           # Run update script
           - task: SSH@0
