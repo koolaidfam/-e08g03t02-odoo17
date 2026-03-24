@@ -39,7 +39,7 @@ stages:
                 set -e
                 echo "Deploying branch: $(Build.SourceBranchName)"
                 cd $HOME
-                rm -rf deploy-temp *-odoo17
+                rm -rf deploy-temp
                 git clone -b Staging $(repoUrl) deploy-temp --quiet
                 cd deploy-temp
                 rm -f .DS_Store
@@ -53,9 +53,12 @@ stages:
               runOptions: commands
               commands: |
                 set -e
-                chmod +x $updateScript
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $updateScript
-
+                if [ -f "$updateScript" ]; then
+                  chmod +x $updateScript
+                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $updateScript
+                else
+                  echo "WARNING: Update script not found, skipping"
+                fi
 
 # =========================
 # PRODUCTION STAGE
@@ -82,7 +85,7 @@ stages:
                 set -e
                 echo "Deploying branch: $(Build.SourceBranchName)"
                 cd $HOME
-                rm -rf deploy-temp *-odoo17
+                rm -rf deploy-temp
                 git clone -b master $(repoUrl) deploy-temp --quiet
                 cd deploy-temp
                 rm -f .DS_Store
@@ -94,10 +97,16 @@ stages:
             inputs:
               sshEndpoint: 'ssh-odoo17-production'
               runOptions: commands
-              commands: >-
-                set -e;
-                cd $HOME/deploy-temp;
-                if [ -f "odoo.sql.gz" ]; then echo "Uncompressing odoo.sql.gz..."; gunzip -c odoo.sql.gz > odoo.sql; echo "Uncompress complete"; else echo "WARNING: odoo.sql.gz not found. Skipping uncompress."; fi
+              commands: |
+                set -e
+                cd $HOME/deploy-temp
+                if [ -f "odoo.sql.gz" ]; then
+                  echo "Uncompressing odoo.sql.gz..."
+                  gunzip -c odoo.sql.gz > odoo.sql
+                  echo "Uncompress complete"
+                else
+                  echo "WARNING: odoo.sql.gz not found, skipping uncompress"
+                fi
 
           # Restore Database
           - task: SSH@0
@@ -107,11 +116,15 @@ stages:
               runOptions: commands
               commands: |
                 set -e
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/restore_db.sh /tmp/
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/odoo.sql /tmp/
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod +x /tmp/restore_db.sh
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod 644 /tmp/odoo.sql
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' -u postgres /tmp/restore_db.sh "odoo17" "odoo" "/tmp/odoo.sql"
+                if [ -f "$HOME/deploy-temp/restore_db.sh" ] && [ -f "$HOME/deploy-temp/odoo.sql" ]; then
+                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/restore_db.sh /tmp/
+                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/odoo.sql /tmp/
+                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod +x /tmp/restore_db.sh
+                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod 644 /tmp/odoo.sql
+                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' -u postgres /tmp/restore_db.sh "odoo17" "odoo" "/tmp/odoo.sql"
+                else
+                  echo "WARNING: restore script or odoo.sql not found, skipping database restore"
+                fi
 
           # Run update script
           - task: SSH@0
@@ -121,5 +134,9 @@ stages:
               runOptions: commands
               commands: |
                 set -e
-                chmod +x $updateScript
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $updateScript
+                if [ -f "$updateScript" ]; then
+                  chmod +x $updateScript
+                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $updateScript
+                else
+                  echo "WARNING: Update script not found, skipping"
+                fi
