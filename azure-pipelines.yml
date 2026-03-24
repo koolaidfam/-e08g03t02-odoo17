@@ -53,9 +53,12 @@ stages:
               runOptions: commands
               commands: |
                 set -e
-                chmod +x $HOME/deploy-temp/update_code.sh
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $HOME/deploy-temp/update_code.sh
-
+                if [ -f "$HOME/deploy-temp/update_code.sh" ]; then
+                  chmod +x $HOME/deploy-temp/update_code.sh
+                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $HOME/deploy-temp/update_code.sh
+                else
+                  echo "WARNING: update_code.sh not found. Skipping update script."
+                fi
 
 # =========================
 # PRODUCTION STAGE
@@ -97,15 +100,15 @@ stages:
               commands: |
                 set -e
                 cd $HOME/deploy-temp
-                if [ -f odoo.sql.gz ]; then
+                if [ -f "odoo.sql.gz" ]; then
                   echo "Uncompressing odoo.sql.gz..."
                   gunzip -c odoo.sql.gz > odoo.sql
                   echo "Uncompress complete"
                 else
-                  echo "WARNING: odoo.sql.gz not found. Skipping database restore."
+                  echo "WARNING: odoo.sql.gz not found. Skipping uncompress."
                 fi
 
-          # Restore Database (only if SQL exists)
+          # Restore Database if odoo.sql exists
           - task: SSH@0
             displayName: "Restore Database"
             inputs:
@@ -113,14 +116,14 @@ stages:
               runOptions: commands
               commands: |
                 set -e
-                if [ -f $HOME/deploy-temp/odoo.sql ]; then
+                if [ -f "$HOME/deploy-temp/restore_db.sh" ] && [ -f "$HOME/deploy-temp/odoo.sql" ]; then
                   echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/restore_db.sh /tmp/
                   echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' cp $HOME/deploy-temp/odoo.sql /tmp/
                   echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod +x /tmp/restore_db.sh
                   echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' chmod 644 /tmp/odoo.sql
                   echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' -u postgres /tmp/restore_db.sh "odoo17" "odoo" "/tmp/odoo.sql"
                 else
-                  echo "Skipping database restore: odoo.sql not found."
+                  echo "WARNING: restore_db.sh or odoo.sql missing. Skipping database restore."
                 fi
 
           # Run update script
@@ -131,5 +134,9 @@ stages:
               runOptions: commands
               commands: |
                 set -e
-                chmod +x $HOME/deploy-temp/update_code.sh
-                echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $HOME/deploy-temp/update_code.sh
+                if [ -f "$HOME/deploy-temp/update_code.sh" ]; then
+                  chmod +x $HOME/deploy-temp/update_code.sh
+                  echo "$(STAGINGUSERPASSWORD)" | sudo -S -p '' $HOME/deploy-temp/update_code.sh
+                else
+                  echo "WARNING: update_code.sh not found. Skipping update script."
+                fi
